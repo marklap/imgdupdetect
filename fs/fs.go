@@ -12,57 +12,22 @@ var (
 	errRootNotDir = fmt.Errorf("path is not a directory")
 )
 
-// Imager specifies an image
-type Imager interface {
-	// Name returns the name of the Image type
-	Name() string
+// Matcher specifies an method of finding files
+type Matcher interface {
 	// Patterns returns the patterns associated with this Image type
 	Patterns() []string
 }
-
-// Image helps with finding images of the specified name.
-type Image struct {
-	name     string
-	patterns []string
-}
-
-// NewImage creates a new Image
-func NewImage(n string, p []string) *Image {
-	return &Image{
-		name:     n,
-		patterns: p,
-	}
-}
-
-// Name returns the name of this Img
-func (i *Image) Name() string {
-	return i.name
-}
-
-// Patterns returns the patterns associated with this image
-func (i *Image) Patterns() []string {
-	return i.patterns
-}
-
-var (
-	// GIF is a gif image
-	GIF = &Image{name: "gif", patterns: []string{"*.gif"}}
-	// JPG is a jpg image
-	JPG = &Image{name: "jpg", patterns: []string{"*.jpg", "*.jpeg"}}
-	// PNG is a png image
-	PNG = &Image{name: "png", patterns: []string{"*.png"}}
-)
 
 // Path is used to search for images in the specified root path.
 type Path struct {
 	Name         string
 	Root         *os.File
 	RootFileInfo os.FileInfo
-	Recursive    bool
+	Matchers     []Matcher
 }
 
 // NewPath creates a new path
-func NewPath(root string, recurs bool) (*Path, error) {
+func NewPath(root string, matchers []Matcher) (*Path, error) {
 	fi, err := os.Stat(root)
 	if err != nil {
 		return nil, err
@@ -81,16 +46,16 @@ func NewPath(root string, recurs bool) (*Path, error) {
 		Name:         root,
 		Root:         fd,
 		RootFileInfo: fi,
-		Recursive:    recurs,
+		Matchers:     matchers,
 	}, nil
 }
 
-// FindImages finds all imgs in the specified dir directory and returns a list of file paths.
-func (p *Path) FindImages(imgs []Imager) ([]string, error) {
+// Find finds all files in the specified dir directory and returns a list of paths.
+func (p *Path) Find() ([]string, error) {
 	var paths = []string{}
 	err := filepath.Walk(p.Root.Name(), func(path string, info os.FileInfo, err error) error {
-		for _, img := range imgs {
-			for _, pattern := range img.Patterns() {
+		for _, match := range p.Matchers {
+			for _, pattern := range match.Patterns() {
 				if matched, err := filepath.Match(pattern, filepath.Base(path)); err == nil {
 					if matched {
 						paths = append(paths, path)

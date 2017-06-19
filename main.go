@@ -7,11 +7,7 @@ import (
 )
 
 func main() {
-	var (
-		debug   = flag.Bool("debug", false, "turn debug logging on")
-		root    = flag.String("root", ".", "root directory")
-		pattern = flag.String("pattern", "*.jpeg", "pattern to match for files")
-	)
+	var debug = flag.Bool("debug", false, "turn debug logging on")
 	flag.Parse()
 
 	if *debug {
