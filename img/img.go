@@ -1,9 +1,16 @@
 package img
 
 import (
-	"fmt"
+	"crypto/sha256"
 	"image"
+	"math"
 	"os"
+
+	_ "image/gif"  // registers gif encoding
+	_ "image/jpeg" // registers jpg encoding
+	_ "image/png"  // registers png encoding
+
+	log "github.com/sirupsen/logrus"
 )
 
 // FingerPrinter specifies a value that can generate a practically-unique fingerprint for an image
@@ -41,15 +48,18 @@ var (
 type Image struct {
 	Path   string
 	Type   string
-	Config interface{}
+	Config image.Config
 }
 
 // NewImage creates a new Image
 func NewImage(path string) (*Image, error) {
+	log.Debugf("creating Image for path: %s", path)
+
 	fd, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
+	defer fd.Close()
 
 	imgCfg, imgType, err := image.DecodeConfig(fd)
 	if err != nil {
@@ -63,7 +73,52 @@ func NewImage(path string) (*Image, error) {
 	}, nil
 }
 
+// midPoints find the middle
+func midPoints(w, h int) (x, y int) {
+	return int(math.Floor(float64(w) / 2.0)), int(math.Floor(float64(h) / 2.0))
+}
+
 // FingerPrint returns a unique fingerprint for an image - well... for practical purposes
-func (i *Image) FingerPrint(path string) ([]byte, error) {
-	return nil, fmt.Errorf("not implemented")
+func (i *Image) FingerPrint() ([]byte, error) {
+	buf := make([]byte, (i.Config.Width+i.Config.Height)*8) // 2 bytes per color (0xffff), 4 colors in a pixel (rgba), 8 bytes per pixel
+
+	fd, err := os.Open(i.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	image, _, err := image.Decode(fd)
+	if err != nil {
+		return nil, err
+	}
+
+	bounds := image.Bounds()
+	midX, midY := midPoints(i.Config.Width, i.Config.Height)
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		startOffset := (y - bounds.Min.Y) * 8 // the start of the slice
+
+		r, g, b, a := image.At(midX, y).RGBA()
+		for j, c := range []uint32{r, g, b, a} {
+			offset := startOffset + (j * 2)
+			buf[offset] = byte(c >> 8)
+			buf[offset+1] = byte(c)
+		}
+	}
+
+	for x := bounds.Min.X; x < bounds.Max.X; x++ {
+		startOffset := (i.Config.Height + x - bounds.Min.X) * 8 // the start of the slice
+
+		r, g, b, a := image.At(x, midY).RGBA()
+		for j, c := range []uint32{r, g, b, a} {
+			offset := startOffset + (j * 2)
+			buf[offset] = byte(c >> 8)
+			buf[offset+1] = byte(c)
+		}
+	}
+
+	sum := sha256.Sum256(buf)
+	res := make([]byte, len(sum))
+	copy(res, sum[:])
+	return res, nil
 }

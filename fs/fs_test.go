@@ -8,17 +8,17 @@ import (
 )
 
 func TestPath(t *testing.T) {
-	_, err := NewPath("lkjsdlfjalksdjflkjsadf", []Matcher{img.GIFMatch})
-	if err == nil {
-		t.Errorf("nonsense file was found - want: error, got: nil")
-	}
-
 	tstFile := "findtest.tmp"
-	_, err = os.Create(tstFile)
+	_, err := os.Create(tstFile)
 	if err != nil {
 		t.Error(err)
 	}
 	defer os.Remove(tstFile)
+
+	_, err = NewPath("lkjsdlfjalksdjflkjsadf", []Matcher{img.GIFMatch})
+	if err == nil {
+		t.Errorf("nonsense file was found - want: error, got: nil")
+	}
 
 	tstMatch := img.NewImageMatch([]string{tstFile})
 
