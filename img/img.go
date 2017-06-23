@@ -46,9 +46,10 @@ var (
 
 // Image represents an image file
 type Image struct {
-	Path   string
-	Type   string
-	Config image.Config
+	Path     string
+	Type     string
+	Config   image.Config
+	FileInfo os.FileInfo
 }
 
 // NewImage creates a new Image
@@ -61,15 +62,21 @@ func NewImage(path string) (*Image, error) {
 	}
 	defer fd.Close()
 
+	fi, err := fd.Stat()
+	if err != nil {
+		return nil, err
+	}
+
 	imgCfg, imgType, err := image.DecodeConfig(fd)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Image{
-		Path:   path,
-		Type:   imgType,
-		Config: imgCfg,
+		Path:     path,
+		Type:     imgType,
+		Config:   imgCfg,
+		FileInfo: fi,
 	}, nil
 }
 
@@ -86,6 +93,7 @@ func (i *Image) FingerPrint() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer fd.Close()
 
 	image, _, err := image.Decode(fd)
 	if err != nil {

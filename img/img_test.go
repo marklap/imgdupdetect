@@ -1,6 +1,7 @@
 package img
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -8,7 +9,13 @@ import (
 )
 
 var (
-	tstImagePath   = filepath.Clean(filepath.Join(filepath.Dir(os.Args[0]), "..", "..", "..", "..", "monkey.orig.jpg"))
+	tstImagePath   = filepath.Clean(filepath.Join(filepath.Dir(os.Args[0]), "..", "..", "..", ".."))
+	tstImageOrig   = filepath.Join(tstImagePath, "monkey.orig.jpg")
+	tstImageCopy   = filepath.Join(tstImagePath, "monkey.dup.jpg")
+	tstImageGrow   = filepath.Join(tstImagePath, "monkey.lg.jpg")
+	tstImageShrink = filepath.Join(tstImagePath, "monkey.sm.jpg")
+	tstImageCrop   = filepath.Join(tstImagePath, "monkey.crop.jpg")
+	tstImageSharp  = filepath.Join(tstImagePath, "monkey.sharp10.jpg")
 	tstImageWidth  = 1600
 	tstImageHeight = 1200
 )
@@ -26,7 +33,7 @@ func TestNewImage(t *testing.T) {
 	wantW := tstImageWidth
 	wantH := tstImageHeight
 
-	got, err := NewImage(tstImagePath)
+	got, err := NewImage(tstImageOrig)
 	if err != nil {
 		t.Error(err)
 	}
@@ -51,24 +58,49 @@ func TestFingerPrint(t *testing.T) {
 		t.Errorf("does not implement interface - want: %s, got: %s", wantIface, gotIface)
 	}
 
-	i, err := NewImage(tstImagePath)
+	orig, err := NewImage(tstImageOrig)
 	if err != nil {
 		t.Error(err)
 	}
 
-	fp, err := i.FingerPrint()
+	origFp, err := orig.FingerPrint()
 	if err != nil {
 		t.Error(err)
 	}
 
-	t.Logf("%x", fp)
+	origSum := fmt.Sprintf("%x", origFp)
 
+	for _, tstImg := range []struct {
+		path string
+		want bool
+	}{
+		{tstImageCopy, true},
+		{tstImageCrop, false},
+		{tstImageGrow, false},
+		{tstImageSharp, false},
+		{tstImageShrink, false},
+	} {
+		i, err := NewImage(tstImg.path)
+		if err != nil {
+			t.Error(err)
+		}
+
+		f, err := i.FingerPrint()
+		if err != nil {
+			t.Error(err)
+		}
+
+		s := fmt.Sprintf("%x", f)
+		if got := origSum == s; got != tstImg.want {
+			t.Errorf("duplicate detection failed - want: %t, got: %t", tstImg.want, got)
+		}
+	}
 }
 
 func BenchmarkFingerPrint(b *testing.B) {
 	var img *Image
 	var err error
-	img, err = NewImage(tstImagePath)
+	img, err = NewImage(tstImageOrig)
 	if err != nil {
 		b.Error(err)
 	}
