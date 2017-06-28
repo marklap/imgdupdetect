@@ -4,6 +4,11 @@ import (
 	"fmt"
 
 	"github.com/boltdb/bolt"
+	log "github.com/sirupsen/logrus"
+)
+
+var (
+	errTmplBucketNotFound = "bucket not found: %s"
 )
 
 // Config is the datastore config
@@ -20,7 +25,7 @@ type Datastorer interface {
 	Close() error
 
 	// Get gets the set of fileData that has the same fingerprint.
-	Get(collection string, fingerprint []byte) (map[string][]map[string][]byte, error)
+	Get(collection string, fingerprint []byte) (map[string]map[string][]byte, error)
 
 	// Add adds a file data for a fingerprint.
 	Add(collection string, fingerprint []byte, filename string, data map[string][]byte) error
@@ -54,29 +59,36 @@ func (d *Datastore) Close() error {
 }
 
 // Get gets the set of file data associated with this fingerprint.
-func (d *Datastore) Get(col string, fp []byte) (map[string][]map[string][]byte, error) {
-	// var res map[string][]map[string][]byte
-	// var err error
-	// err = d.db.View(func(tx *bolt.Tx) error {
-	// 	root := tx.Bucket([]byte(col))
-	// 	if root == nil {
-	// 		return nil
-	// 	}
-	// 	bkt := root.Bucket(fp)
-	// 	if bkt == nil {
-	// 		return nil
-	// 	}
-	// 	res = make(map[string][]map[string][]byte)
-	// 	bkt.ForEach(func(k, v []byte) error {
-	// 		var m = make(map[string][]byte)
-	// 		b.ForEach(func(k, v []byte) error {
-	// 			m[string(k)] = v
-	// 		})
-	// 		res[string(n)] = append(res[string(n)], m)
-	// 	})
-	// })
-	// return res, err
-	return nil, fmt.Errorf("not yet implemented")
+func (d *Datastore) Get(col string, fp []byte) (map[string]map[string][]byte, error) {
+	var res = make(map[string]map[string][]byte)
+	err := d.db.View(func(tx *bolt.Tx) error {
+		root := tx.Bucket([]byte(col))
+		if root == nil {
+			return fmt.Errorf(errTmplBucketNotFound, col)
+		}
+
+		fpBkt := root.Bucket(fp)
+		if fpBkt == nil {
+			return fmt.Errorf(errTmplBucketNotFound, fp)
+		}
+
+		fpBkt.ForEach(func(k, v []byte) error {
+			if v == nil {
+				res[string(k)] = make(map[string][]byte)
+				fileBkt := fpBkt.Bucket(k)
+				if fileBkt == nil {
+					log.Errorf(errTmplBucketNotFound, k)
+				}
+				fileBkt.ForEach(func(mKey, mVal []byte) error {
+					res[string(k)][string(mKey)] = mVal
+					return nil
+				})
+			}
+			return nil
+		})
+		return nil
+	})
+	return res, err
 }
 
 // Add adds file data to the set of file data associated with this fingerprint.
@@ -109,5 +121,23 @@ func (d *Datastore) Add(col string, fp []byte, name string, data map[string][]by
 
 // Remove removes a particular file from the set of files associated with this fingerprint.
 func (d *Datastore) Remove(col string, fp []byte, name string) error {
-	return fmt.Errorf("not yet implemented")
+	err := d.db.Update(func(tx *bolt.Tx) error {
+		root := tx.Bucket([]byte(col))
+		if root == nil {
+			return fmt.Errorf(errTmplBucketNotFound, col)
+		}
+
+		fpBkt := root.Bucket(fp)
+		if fpBkt == nil {
+			return fmt.Errorf(errTmplBucketNotFound, fp)
+		}
+
+		err := fpBkt.DeleteBucket([]byte(name))
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	return err
 }
