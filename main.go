@@ -19,7 +19,7 @@ func main() {
 	}
 
 	dirs := flag.Args()
-	err := httpServer(*listen, dirs)
+	err := httpServer(httpConfig{dirs: dirs, listen: *listen})
 	if err != nil {
 		log.Error(err)
 		os.Exit(1)
