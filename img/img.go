@@ -2,6 +2,7 @@ package img
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"image"
 	"math"
 	"os"
@@ -87,7 +88,7 @@ func midPoints(w, h int) (x, y int) {
 
 // FingerPrint returns a unique fingerprint for an image - well... for practical purposes
 func (i *Image) FingerPrint() ([]byte, error) {
-	buf := make([]byte, (i.Config.Width+i.Config.Height)*8) // 2 bytes per color (0xffff), 4 colors in a pixel (rgba), 8 bytes per pixel
+	buf := make([]byte, (i.Config.Width+i.Config.Height)*8) // 8 bytes for size + (2 bytes per color (0xffff), 4 colors in a pixel (rgba), 8 bytes per pixel)
 
 	fd, err := os.Open(i.Path)
 	if err != nil {
@@ -129,4 +130,52 @@ func (i *Image) FingerPrint() ([]byte, error) {
 	res := make([]byte, len(sum))
 	copy(res, sum[:])
 	return res, nil
+}
+
+// Size returns the size
+func (i *Image) Size() uint64 {
+	return uint64(i.FileInfo.Size())
+}
+
+// Height returns the height of the image
+func (i *Image) Height() uint64 {
+	return uint64(i.Config.Height)
+}
+
+// Width returns the width of the image
+func (i *Image) Width() uint64 {
+	return uint64(i.Config.Width)
+}
+
+// SizeByteSlice returns the size of the image in a byte array
+func (i *Image) SizeByteSlice() []byte {
+	return uint64ToByteSlice(i.Size())
+}
+
+// HeightByteSlice returns the size of the image in a byte array
+func (i *Image) HeightByteSlice() []byte {
+	return uint64ToByteSlice(i.Height())
+}
+
+// WidthByteSlice returns the size of the image in a byte array
+func (i *Image) WidthByteSlice() []byte {
+	return uint64ToByteSlice(i.Width())
+}
+
+// uint64ToByteSlice returns a byte slice representing the int
+func uint64ToByteSlice(i uint64) []byte {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, i)
+	return buf
+}
+
+// FingerPrintCollection is a collection of fingerprints
+type FingerPrintCollection struct {
+	FingerPrints []FingerPrint
+}
+
+// FingerPrint is a fingerprint and the files associated with it
+type FingerPrint struct {
+	Hash   []byte
+	Images []string
 }

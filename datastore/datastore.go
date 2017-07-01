@@ -141,3 +141,37 @@ func (d *Datastore) Remove(col string, fp []byte, name string) error {
 	})
 	return err
 }
+
+// GetFingerPrints gets the fingerprints
+func (d *Datastore) GetFingerPrints(col string) [][]byte {
+	var res [][]byte
+	d.db.View(func(tx *bolt.Tx) error {
+		root := tx.Bucket([]byte(col))
+		root.ForEach(func(k, v []byte) error {
+			if v == nil {
+				res = append(res, k)
+			}
+			return nil
+		})
+		return nil
+	})
+	return res
+}
+
+// GetImages gets the images associated with a fingerprint
+func (d *Datastore) GetImages(col string, fp []byte) []string {
+	var res []string
+	d.db.View(func(tx *bolt.Tx) error {
+		root := tx.Bucket([]byte(col))
+
+		fpBkt := root.Bucket(fp)
+		fpBkt.ForEach(func(k, v []byte) error {
+			if v == nil {
+				res = append(res, string(k))
+			}
+			return nil
+		})
+		return nil
+	})
+	return res
+}
