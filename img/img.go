@@ -38,11 +38,11 @@ func (i *ImageMatch) Patterns() []string {
 
 var (
 	// GIFMatch matches on gif files
-	GIFMatch = &ImageMatch{[]string{"*.gif"}}
+	GIFMatch = &ImageMatch{[]string{"*.gif", "*.GIF"}}
 	// JPGMatch matches jpegs
-	JPGMatch = &ImageMatch{[]string{"*.jpg", "*.jpeg"}}
+	JPGMatch = &ImageMatch{[]string{"*.jpg", "*.jpeg", "*.JPG", "*.JPEG"}}
 	// PNGMatch matches png files
-	PNGMatch = &ImageMatch{[]string{"*.png"}}
+	PNGMatch = &ImageMatch{[]string{"*.png", "*.PNG"}}
 )
 
 // Image represents an image file
@@ -88,6 +88,7 @@ func midPoints(w, h int) (x, y int) {
 
 // FingerPrint returns a unique fingerprint for an image - well... for practical purposes
 func (i *Image) FingerPrint() ([]byte, error) {
+	log.Debugf("fingerprinting %s", i.Path)
 	buf := make([]byte, (i.Config.Width+i.Config.Height)*8) // 8 bytes for size + (2 bytes per color (0xffff), 4 colors in a pixel (rgba), 8 bytes per pixel)
 
 	fd, err := os.Open(i.Path)
@@ -129,6 +130,8 @@ func (i *Image) FingerPrint() ([]byte, error) {
 	sum := sha256.Sum256(buf)
 	res := make([]byte, len(sum))
 	copy(res, sum[:])
+
+	log.Debugf(" - hash: %x", string(res))
 	return res, nil
 }
 
