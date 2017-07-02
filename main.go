@@ -25,7 +25,7 @@ func main() {
 	}
 
 	var static = flag.String("static", filepath.Join(here, "static"), "path where static files (html, css, js) are located")
-	var datastorePath = flag.String("datastore", filepath.Join(here, "imgdupdetect.ds"), "path where the datastore should be saved")
+	var datastorePath = flag.String("datastore", filepath.Join(here, "imgdd.ds"), "path where the datastore should be saved")
 	var debug = flag.Bool("debug", false, "turn debug logging on")
 	var listen = flag.String("listen", "127.0.0.1:8228", "interface to listen for web user interface")
 	var serveHTTP = flag.Bool("gui", false, "start an http server at `listen` for a gui")
