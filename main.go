@@ -76,7 +76,7 @@ func main() {
 			default:
 			}
 		}
-		err = cli.Run(&cli.Config{
+		err = cli.Run(cli.Config{
 			Dirs:           dirs,
 			Datastore:      ds,
 			FingerPrintCol: fingerPrintCollection,

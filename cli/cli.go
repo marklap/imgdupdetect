@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"sync"
-
 	"github.com/marklap/imgdupdetect/datastore"
 	"github.com/marklap/imgdupdetect/fs"
 	"github.com/marklap/imgdupdetect/img"
@@ -23,51 +21,52 @@ type Config struct {
 	FingerPrintCol string
 }
 
-// msg is a queue message
-type msg struct {
-	img *img.Image
-	fp  []byte
-}
+// processImage FingerPrints the Images
+func processImage(cfg Config, path string, scanStats *stats.ScanStats) {
+	i, err := img.NewImage(path)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	scanStats.ImagesFoundIncr()
 
-// imageFingerPrint FingerPrints the Images
-func imageFingerPrint(images <-chan *img.Image, fpQueue chan<- *msg, scanStats *stats.ScanStats) {
-	for {
-		select {
-		case image, ok := <-images:
-			if !ok {
-				// channel is closed
-				return
-			}
-			fp, err := image.FingerPrint()
-			if err != nil {
-				log.Error(err)
-				return
-			}
-			scanStats.FingerPrintCountIncr()
+	fp, err := i.FingerPrint()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	scanStats.FingerPrintCountIncr()
 
-			fpQueue <- &msg{image, fp}
-		}
+	meta := map[string][]byte{
+		"size":   i.SizeByteSlice(),
+		"height": i.HeightByteSlice(),
+		"width":  i.WidthByteSlice(),
+	}
+
+	err = cfg.Datastore.Add(cfg.FingerPrintCol, fp, i.Path, meta)
+	if err != nil {
+		log.Error(err)
+		return
 	}
 }
 
-// recordFingerPrint
+// worker is kicks off the imageProcess for each image path
+func worker(cfg Config, paths <-chan string, scanStats *stats.ScanStats) {
+	for p := range paths {
+		processImage(cfg, p, scanStats)
+	}
+}
 
 // Run runs the specified command
-func Run(cfg *Config, cmd string) error {
+func Run(cfg Config, cmd string) error {
 	log.Info("looking for duplicates...")
 
 	scanStats := stats.NewScanStats()
 
-	images := make(chan *img.Image)
-	fpQueue := make(chan *msg)
+	imagePaths := make(chan string)
 
-	var wg sync.WaitGroup
 	for i := 0; i < runtime.NumCPU(); i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			imageFingerPrint(images, fpQueue, scanStats)
-		}()
+		go worker(cfg, imagePaths, scanStats)
 	}
 
 	matchers := []fs.Matcher{img.GIFMatch, img.JPGMatch, img.PNGMatch}
@@ -79,62 +78,18 @@ func Run(cfg *Config, cmd string) error {
 			continue
 		}
 
-		imgPaths, err := p.Find()
+		paths, err := p.Find()
 		if err != nil {
 			log.Error(err)
 			continue
 		}
 
-		for _, imgPath := range imgPaths {
-			i, err := img.NewImage(imgPath)
-			if err != nil {
-				log.Error(err)
-				continue
-			}
-
-			images <- i
-
-			// scanStats.ImagesFound++
-
-			// fp, err := i.FingerPrint()
-			// if err != nil {
-			// 	log.Error(err)
-			// 	continue
-			// }
-			// scanStats.FingerPrintCount++
-
-			// meta := map[string][]byte{
-			// 	"size":   i.SizeByteSlice(),
-			// 	"height": i.HeightByteSlice(),
-			// 	"width":  i.WidthByteSlice(),
-			// }
-
-			// err = cfg.Datastore.Add(cfg.FingerPrintCol, fp, imgPath, meta)
-			// if err != nil {
-			// 	log.Error(err)
-			// 	continue
-			// }
+		for _, path := range paths {
+			imagePaths <- path
 		}
 	}
 
-	go func() {
-		for m := range fpQueue {
-			meta := map[string][]byte{
-				"size":   m.img.SizeByteSlice(),
-				"height": m.img.HeightByteSlice(),
-				"width":  m.img.WidthByteSlice(),
-			}
-
-			err := cfg.Datastore.Add(cfg.FingerPrintCol, m.fp, m.img.Path, meta)
-			if err != nil {
-				log.Error(err)
-				continue
-			}
-		}
-	}()
-
-	wg.Wait()
-	close(fpQueue)
+	close(imagePaths)
 
 	fps := cfg.Datastore.GetFingerPrints(cfg.FingerPrintCol)
 	for _, fp := range fps {
