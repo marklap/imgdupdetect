@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"bytes"
+	"os"
 	"testing"
 )
 
@@ -10,7 +11,16 @@ var (
 	tstCollection    = "test"
 )
 
+func clearDatastore(t *testing.T) {
+	err := os.Remove(tstDatastorePath)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 func TestDataStore(t *testing.T) {
+	defer clearDatastore(t)
+
 	ds, err := Open(Config{tstDatastorePath})
 	if err != nil {
 		t.Error(err)

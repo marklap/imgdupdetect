@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	tstImagePath   = filepath.Clean(filepath.Join(filepath.Dir(os.Args[0]), "..", "..", "..", ".."))
+	tstImagePath   = "/workspace/dev/github.com/marklap/imgdupdetect/src/github.com/marklap/imgdupdetect/static/img"
 	tstImageOrig   = filepath.Join(tstImagePath, "monkey.orig.jpg")
 	tstImageCopy   = filepath.Join(tstImagePath, "monkey.dup.jpg")
 	tstImageGrow   = filepath.Join(tstImagePath, "monkey.lg.jpg")
@@ -32,6 +32,9 @@ func TestNewImage(t *testing.T) {
 	wantT := "jpeg"
 	wantW := tstImageWidth
 	wantH := tstImageHeight
+
+	fmt.Println("os.Args[0]:", os.Args[0])
+	fmt.Println("tstImagePath:", tstImagePath)
 
 	got, err := NewImage(tstImageOrig)
 	if err != nil {

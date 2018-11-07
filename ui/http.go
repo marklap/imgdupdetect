@@ -1,7 +1,8 @@
-package gui
+package ui
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -40,6 +41,7 @@ type ctxKey string
 const ctxKeyConfig = ctxKey("ctxConfig")
 
 func wsHandler(ws *websocket.Conn) {
+	io.Copy(ws, ws)
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/marklap/imgdupdetect/cli"
 	"github.com/marklap/imgdupdetect/datastore"
-	"github.com/marklap/imgdupdetect/gui"
+	"github.com/marklap/imgdupdetect/ui"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -28,7 +28,7 @@ func main() {
 	var datastorePath = flag.String("datastore", filepath.Join(here, "imgdd.ds"), "path where the datastore should be saved")
 	var debug = flag.Bool("debug", false, "turn debug logging on")
 	var listen = flag.String("listen", "127.0.0.1:8228", "interface to listen for web user interface")
-	var serveHTTP = flag.Bool("gui", false, "start an http server at `listen` for a gui")
+	var serveHTTP = flag.Bool("ui", false, "start an http server at `listen`")
 	flag.Parse()
 
 	if *debug {
@@ -53,7 +53,7 @@ func main() {
 	defer ds.Close()
 
 	if *serveHTTP {
-		err = gui.Serve(gui.Config{
+		err = ui.Serve(ui.Config{
 			Dirs:           dirs,
 			Listen:         *listen,
 			Static:         *static,
