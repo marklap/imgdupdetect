@@ -29,6 +29,8 @@ func main() {
 	var debug = flag.Bool("debug", false, "turn debug logging on")
 	var listen = flag.String("listen", "127.0.0.1:8228", "interface to listen for web user interface")
 	var serveHTTP = flag.Bool("ui", false, "start an http server at `listen`")
+	var relocateFrom = flag.String("relo-from", "", "relocate images from path")
+	var relocateTo = flag.String("relo-to", "", "relocate images to path")
 	flag.Parse()
 
 	if *debug {
@@ -37,13 +39,31 @@ func main() {
 		log.SetLevel(log.InfoLevel)
 	}
 
-	log.Debugf("static dir: %s", *static)
+	if (len(*relocateFrom) > 0 && *relocateTo == "") || (len(*relocateTo) > 0 && *relocateFrom == "") {
+		log.Error("must specify relocate from and relocate to")
+		os.Exit(1)
+	}
 
-	dirs := flag.Args()
-	if len(dirs) == 0 {
+	var dirs []string
+	if len(*relocateFrom) > 0 && len(*relocateTo) > 0 {
+		if _, err := os.Stat(*relocateFrom); os.IsNotExist(err) {
+			log.Error("relo-from directory does not exist: ", *relocateFrom)
+			os.Exit(1)
+		}
+		if _, err := os.Stat(*relocateTo); os.IsNotExist(err) {
+			log.Error("relo-to directory does not exist: ", *relocateTo)
+			os.Exit(1)
+		}
+		if *relocateFrom == *relocateTo {
+			log.Error("relo-from and relo-to must not be the same directory")
+			os.Exit(1)
+		}
+	} else if dirs = flag.Args(); len(dirs) == 0 {
 		log.Error("no directories specified")
 		os.Exit(1)
 	}
+
+	log.Debugf("static dir: %s", *static)
 
 	ds, err := datastore.Open(datastore.Config{Path: *datastorePath})
 	if err != nil {
@@ -64,6 +84,15 @@ func main() {
 			log.Error(err)
 			os.Exit(1)
 		}
+	} else if len(*relocateFrom) > 0 && len(*relocateTo) > 0 {
+		err = cli.ReloRun(cli.ReloConfig{
+			From: *relocateFrom,
+			To:   *relocateTo,
+		})
+		if err != nil {
+			log.Error(err)
+			os.Exit(1)
+		}
 	} else {
 		var cmd = "fingerprint"
 		if len(dirs) > 1 {
@@ -76,7 +105,7 @@ func main() {
 			default:
 			}
 		}
-		err = cli.Run(cli.Config{
+		err = cli.DupeDetectRun(cli.DupeDetectConfig{
 			Dirs:           dirs,
 			Datastore:      ds,
 			FingerPrintCol: fingerPrintCollection,

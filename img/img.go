@@ -11,6 +11,8 @@ import (
 	_ "image/jpeg" // registers jpg encoding
 	_ "image/png"  // registers png encoding
 
+	_ "golang.org/x/image/tiff" // registers tiff encodign
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -43,6 +45,8 @@ var (
 	JPGMatch = &ImageMatch{[]string{"*.jpg", "*.jpeg", "*.JPG", "*.JPEG"}}
 	// PNGMatch matches png files
 	PNGMatch = &ImageMatch{[]string{"*.png", "*.PNG"}}
+	// TIFFMatch matches tiff files
+	TIFFMatch = &ImageMatch{[]string{"*.cr2", "*.CR2", "*.tiff", "*.TIFF"}}
 )
 
 // Image represents an image file

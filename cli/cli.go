@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+
 	"github.com/marklap/imgdupdetect/datastore"
 	"github.com/marklap/imgdupdetect/fs"
 	"github.com/marklap/imgdupdetect/img"
@@ -9,8 +11,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Config is the CLI config
-type Config struct {
+// DupeDetectConfig is the duplicate detector CLI config
+type DupeDetectConfig struct {
 
 	// Dirs is the directories to scan for duplicates
 	Dirs []string
@@ -20,8 +22,48 @@ type Config struct {
 	FingerPrintCol string
 }
 
-// Run runs the specified command
-func Run(cfg Config, cmd string) error {
+// ReloConfig is the relocation CLI config
+type ReloConfig struct {
+
+	// From is the directory of the source images
+	From string
+	// To is the target directory
+	To string
+}
+
+// ReloRun runs the relocation function
+func ReloRun(cfg ReloConfig) error {
+	log.Debug("relo from: ", cfg.From)
+	log.Debug("relo to: ", cfg.To)
+
+	p, err := fs.NewPath(cfg.From, []fs.Matcher{img.TIFFMatch})
+	if err != nil {
+		log.Error(err)
+		os.Exit(1)
+	}
+
+	imgPaths, err := p.Find()
+	if err != nil {
+		log.Error(err)
+		os.Exit(1)
+	}
+
+	for _, path := range imgPaths {
+		var err error
+		var i *img.Image
+		i, err = img.NewImage(path)
+		if err != nil {
+			log.Error(err)
+		}
+
+		print(i.Type)
+	}
+
+	return nil
+}
+
+// DupeDetectRun runs the duplicate detect function
+func DupeDetectRun(cfg DupeDetectConfig, cmd string) error {
 	scanStats := stats.NewScanStats()
 
 	log.Info("looking for duplicates...")
