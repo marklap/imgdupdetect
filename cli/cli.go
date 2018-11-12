@@ -1,15 +1,32 @@
 package cli
 
 import (
+	"crypto/rand"
+	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/marklap/imgdupdetect/datastore"
 	"github.com/marklap/imgdupdetect/fs"
 	"github.com/marklap/imgdupdetect/img"
 	"github.com/marklap/imgdupdetect/stats"
 
+	"github.com/rwcarlsen/goexif/exif"
+	"github.com/rwcarlsen/goexif/mknote"
+
 	log "github.com/sirupsen/logrus"
 )
+
+func uuid() string {
+	buf := make([]byte, 6)
+	_, err := rand.Read(buf)
+	if err != nil {
+		return ""
+	}
+	id := fmt.Sprintf("%012x", buf)
+	return id
+}
 
 // DupeDetectConfig is the duplicate detector CLI config
 type DupeDetectConfig struct {
@@ -36,7 +53,7 @@ func ReloRun(cfg ReloConfig) error {
 	log.Debug("relo from: ", cfg.From)
 	log.Debug("relo to: ", cfg.To)
 
-	p, err := fs.NewPath(cfg.From, []fs.Matcher{img.TIFFMatch})
+	p, err := fs.NewPath(cfg.From, []fs.Matcher{img.TIFFMatch, img.JPGMatch})
 	if err != nil {
 		log.Error(err)
 		os.Exit(1)
@@ -48,15 +65,47 @@ func ReloRun(cfg ReloConfig) error {
 		os.Exit(1)
 	}
 
+	exif.RegisterParsers(mknote.All...)
+
 	for _, path := range imgPaths {
 		var err error
-		var i *img.Image
-		i, err = img.NewImage(path)
+		// var i *img.Image
+		// i, err = img.NewImage(path)
+		// if err != nil {
+		// 	log.Error(err)
+		// }
+
+		fd, err := os.Open(path)
+		defer fd.Close()
+
 		if err != nil {
 			log.Error(err)
+			return err
 		}
 
-		print(i.Type)
+		ximg, err := exif.Decode(fd)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
+		dt, _ := ximg.DateTime()
+		if dt.IsZero() {
+			log.Error("not a date")
+			continue
+		}
+
+		base := filepath.Base(path)
+		parts := strings.SplitN(base, ".", 2)
+
+		fmt.Println(
+			path,
+			filepath.Join(
+				cfg.To,
+				dt.Format("2006-01-02"),
+				strings.ToLower(strings.Join([]string{parts[0], uuid(), parts[1]}, ".")),
+			),
+		)
 	}
 
 	return nil
