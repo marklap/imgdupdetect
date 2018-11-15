@@ -3,6 +3,7 @@ package cli
 import (
 	"crypto/rand"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,20 +96,71 @@ func ReloRun(cfg ReloConfig) error {
 			continue
 		}
 
-		base := filepath.Base(path)
-		parts := strings.SplitN(base, ".", 2)
-
-		fmt.Println(
-			path,
-			filepath.Join(
-				cfg.To,
-				dt.Format("2006-01-02"),
-				strings.ToLower(strings.Join([]string{parts[0], uuid(), parts[1]}, ".")),
-			),
+		newPath, isDup, sz := uniqueDestPath(
+			filepath.Join(cfg.To, dt.Format("2006-01-02")),
+			fd,
 		)
+
+		fmt.Printf("\"%s\",\"%s\",\"%t\",%d\n", path, newPath, isDup, sz)
+
+		err = ensureDir(newPath)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
+		destFile, err := os.Create(newPath)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
+		_, err = io.Copy(fd, destFile)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
 	}
 
 	return nil
+}
+
+func ensureDir(path string) error {
+	dirPath := filepath.Dir(path)
+	if stat, err := os.Stat(dirPath); os.IsExist(err) && stat.IsDir() {
+		return nil
+	}
+
+	mode := os.FileMode(0755)
+	err := os.MkdirAll(dirPath, mode)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	return nil
+}
+
+func uniqueDestPath(dstPath string, src *os.File) (string, bool, int64) {
+	srcBase := filepath.Base(src.Name())
+	srcStat, _ := src.Stat()
+	srcSize := srcStat.Size()
+	newPath := filepath.Join(dstPath, srcBase)
+
+	if _, err := os.Stat(newPath); os.IsNotExist(err) {
+		return newPath, false, srcSize
+	}
+
+	fileParts := strings.SplitN(srcBase, ".", 2)
+	fileName, fileExt := fileParts[0], fileParts[1]
+
+	for i := 1; i < 100; i++ {
+		newPath := filepath.Join(dstPath, fmt.Sprintf("%s.%03d.%s", fileName, i, fileExt))
+		if _, err := os.Stat(newPath); os.IsNotExist(err) {
+			return newPath, true, srcSize
+		}
+	}
+
+	return "", false, 0
 }
 
 // DupeDetectRun runs the duplicate detect function
