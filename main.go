@@ -105,7 +105,7 @@ func main() {
 			default:
 			}
 		}
-		err = cli.DupeDetectRun(cli.DupeDetectConfig{
+		err = cli.MD5Sum(cli.DupeDetectConfig{
 			Dirs:           dirs,
 			Datastore:      ds,
 			FingerPrintCol: fingerPrintCollection,

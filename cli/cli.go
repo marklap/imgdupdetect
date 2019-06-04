@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"crypto/md5"
 	"crypto/rand"
 	"fmt"
 	"io"
@@ -222,6 +223,48 @@ func DupeDetectRun(cfg DupeDetectConfig, cmd string) error {
 			for _, i := range ims {
 				log.Infof("  - %s", i)
 			}
+		}
+	}
+
+	scanStats.Complete()
+	log.Info(scanStats)
+
+	return nil
+}
+
+func MD5Sum(cfg DupeDetectConfig, cmd string) error {
+	scanStats := stats.NewScanStats()
+
+	log.Info("looking for duplicates...")
+	matchers := []fs.Matcher{img.GIFMatch, img.JPGMatch, img.PNGMatch}
+	for _, d := range cfg.Dirs {
+		log.Infof(" - %s", d)
+		p, err := fs.NewPath(d, matchers)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+
+		imgPaths, err := p.Find()
+		if err != nil {
+			log.Error(err)
+			continue
+		}
+
+		for _, imgPath := range imgPaths {
+			log.Info("found image:", imgPath)
+			func() {
+				fp, err := os.Open(imgPath)
+				if err != nil {
+					log.Fatal(err)
+				}
+				defer fp.Close()
+				hash := md5.New()
+				if _, err := io.Copy(hash, fp); err != nil {
+					log.Fatal(err)
+				}
+				log.Info(fmt.Sprintf("\tmd5sum: %x", hash.Sum(nil)))
+			}()
 		}
 	}
 
