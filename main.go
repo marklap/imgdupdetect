@@ -31,6 +31,7 @@ func main() {
 	var serveHTTP = flag.Bool("ui", false, "start an http server at `listen`")
 	var relocateFrom = flag.String("relo-from", "", "relocate images from path")
 	var relocateTo = flag.String("relo-to", "", "relocate images to path")
+	var dumpDB = flag.Bool("dump", false, "dump contents of database and exit")
 	flag.Parse()
 
 	if *debug {
@@ -46,7 +47,9 @@ func main() {
 
 	var dirs []string
 	if len(*relocateFrom) > 0 && len(*relocateTo) > 0 {
+
 		if _, err := os.Stat(*relocateFrom); os.IsNotExist(err) {
+
 			log.Error("relo-from directory does not exist: ", *relocateFrom)
 			os.Exit(1)
 		}
@@ -71,6 +74,11 @@ func main() {
 		os.Exit(1)
 	}
 	defer ds.Close()
+
+	if *dumpDB {
+		ds.Dump(os.Stdout)
+		os.Exit(0)
+	}
 
 	if *serveHTTP {
 		err = ui.Serve(ui.Config{
@@ -108,7 +116,7 @@ func main() {
 		err = cli.MD5Sum(cli.DupeDetectConfig{
 			Dirs:           dirs,
 			Datastore:      ds,
-			FingerPrintCol: fingerPrintCollection,
+			FingerPrintCol: "md5sum",
 		}, cmd)
 		if err != nil {
 			log.Error(err)

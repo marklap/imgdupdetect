@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/boltdb/bolt"
 	log "github.com/sirupsen/logrus"
@@ -32,6 +33,9 @@ type Datastorer interface {
 
 	// Remove removes a file from the set of files for this fingerprint.
 	Remove(collection string, fingerprint []byte, filename string) error
+
+	// Dump streams all objects in the database to the given file writer
+	Dump(writer io.Writer) error
 }
 
 // Datastore is the default implementation of a Datastorer.
@@ -174,4 +178,18 @@ func (d *Datastore) GetImages(col string, fp []byte) []string {
 		return nil
 	})
 	return res
+}
+
+// Dump dumps the contents of the database to the provided file writer
+func (d *Datastore) Dump(w io.Writer) error {
+	return d.db.View(func(tx *bolt.Tx) error {
+		return tx.ForEach(func(name []byte, _ *bolt.Bucket) error {
+			b := tx.Bucket(name)
+			c := b.Cursor()
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				w.Write([]byte(fmt.Sprintf("bucket=%s, key=%s, value=%s\n", string(name), string(k), string(v))))
+			}
+			return nil
+		})
+	})
 }

@@ -233,7 +233,9 @@ func DupeDetectRun(cfg DupeDetectConfig, cmd string) error {
 }
 
 func MD5Sum(cfg DupeDetectConfig, cmd string) error {
+	fpCol := "md5sum"
 	scanStats := stats.NewScanStats()
+	var emptyMap map[string][]byte
 
 	log.Info("looking for duplicates...")
 	matchers := []fs.Matcher{img.GIFMatch, img.JPGMatch, img.PNGMatch}
@@ -263,13 +265,14 @@ func MD5Sum(cfg DupeDetectConfig, cmd string) error {
 				if _, err := io.Copy(hash, fp); err != nil {
 					log.Fatal(err)
 				}
-				log.Info(fmt.Sprintf("\tmd5sum: %x", hash.Sum(nil)))
+				md5Sum := fmt.Sprintf("%x", hash.Sum(nil))
+				cfg.Datastore.Add(fpCol, []byte(md5Sum), imgPath, emptyMap)
 			}()
 		}
 	}
 
 	scanStats.Complete()
-	log.Info(scanStats)
+	// log.Info(scanStats)
 
 	return nil
 }
