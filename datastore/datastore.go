@@ -1,11 +1,13 @@
 package datastore
 
 import (
-	"fmt"
-	"io"
+	"database/sql"
 
-	"github.com/boltdb/bolt"
-	log "github.com/sirupsen/logrus"
+	_ "github.com/mattn/go-sqlite3"
+)
+
+const (
+	tableName = "images"
 )
 
 var (
@@ -25,28 +27,35 @@ type Datastorer interface {
 	// Close closes the datastore; no further transactions will be completed.
 	Close() error
 
-	// Get gets the set of fileData that has the same fingerprint.
-	Get(collection string, fingerprint []byte) (map[string]map[string][]byte, error)
+	// Get gets md5 for a file.
+	Get(filePath string) (string, error)
 
-	// Add adds a file data for a fingerprint.
-	Add(collection string, fingerprint []byte, filename string, data map[string][]byte) error
+	// Put adds an md5 for a file path.
+	Put(filePath, hash string) error
 
-	// Remove removes a file from the set of files for this fingerprint.
-	Remove(collection string, fingerprint []byte, filename string) error
+	// // Delete removes filepath from the database.
+	// Delete(filePath string) error
 
-	// Dump streams all objects in the database to the given file writer
-	Dump(writer io.Writer) error
+	// // Dump streams all objects in the database to the given file writer
+	// Dump(writer io.Writer) error
 }
 
 // Datastore is the default implementation of a Datastorer.
 type Datastore struct {
 	Cfg Config
-	db  *bolt.DB
+	db  *sql.DB
 }
 
 // Open opens the default datastore and preps it for transactions.
 func Open(cfg Config) (*Datastore, error) {
-	db, err := bolt.Open(cfg.Path, 0600, nil)
+	db, err := sql.Open("sqlite3", cfg.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = db.Exec(
+		"CREATE TABLE IF NOT EXISTS images (filePath TEXT NOT NULL PRIMARY KEY, md5sum TEXT NOT NULL)",
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -62,134 +71,28 @@ func (d *Datastore) Close() error {
 	return d.db.Close()
 }
 
-// Get gets the set of file data associated with this fingerprint.
-func (d *Datastore) Get(col string, fp []byte) (map[string]map[string][]byte, error) {
-	var res = make(map[string]map[string][]byte)
-	err := d.db.View(func(tx *bolt.Tx) error {
-		root := tx.Bucket([]byte(col))
-		if root == nil {
-			return fmt.Errorf(errTmplBucketNotFound, col)
-		}
+// Get gets the md5sum for a file
+func (d *Datastore) Get(filePath string) (string, error) {
+	rows, err := d.db.Query("SELECT md5sum FROM images WHERE filePath = ?", filePath)
+	if err != nil {
+		return "", nil
+	}
 
-		fpBkt := root.Bucket(fp)
-		if fpBkt == nil {
-			return fmt.Errorf(errTmplBucketNotFound, fp)
+	if rows.Next() {
+		var md5sum string
+		if err = rows.Scan(&md5sum); err != nil {
+			return md5sum, nil
 		}
+	}
 
-		fpBkt.ForEach(func(k, v []byte) error {
-			if v == nil {
-				res[string(k)] = make(map[string][]byte)
-				fileBkt := fpBkt.Bucket(k)
-				if fileBkt == nil {
-					log.Errorf(errTmplBucketNotFound, k)
-				}
-				fileBkt.ForEach(func(mKey, mVal []byte) error {
-					res[string(k)][string(mKey)] = mVal
-					return nil
-				})
-			}
-			return nil
-		})
-		return nil
-	})
-	return res, err
+	return "", nil
 }
 
-// Add adds file data to the set of file data associated with this fingerprint.
-func (d *Datastore) Add(col string, fp []byte, name string, data map[string][]byte) error {
-	var err error
-	err = d.db.Update(func(tx *bolt.Tx) error {
-		cBkt, err := tx.CreateBucketIfNotExists([]byte(col))
-		if err != nil {
-			return err
-		}
-
-		fpBkt, err := cBkt.CreateBucketIfNotExists(fp)
-		if err != nil {
-			return err
-		}
-
-		fileBkt, err := fpBkt.CreateBucketIfNotExists([]byte(name))
-		if err != nil {
-			return err
-		}
-
-		for k, v := range data {
-			fileBkt.Put([]byte(k), v)
-		}
-
-		return nil
-	})
-	return err
-}
-
-// Remove removes a particular file from the set of files associated with this fingerprint.
-func (d *Datastore) Remove(col string, fp []byte, name string) error {
-	err := d.db.Update(func(tx *bolt.Tx) error {
-		root := tx.Bucket([]byte(col))
-		if root == nil {
-			return fmt.Errorf(errTmplBucketNotFound, col)
-		}
-
-		fpBkt := root.Bucket(fp)
-		if fpBkt == nil {
-			return fmt.Errorf(errTmplBucketNotFound, fp)
-		}
-
-		err := fpBkt.DeleteBucket([]byte(name))
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-	return err
-}
-
-// GetFingerPrints gets the fingerprints
-func (d *Datastore) GetFingerPrints(col string) [][]byte {
-	var res [][]byte
-	d.db.View(func(tx *bolt.Tx) error {
-		root := tx.Bucket([]byte(col))
-		root.ForEach(func(k, v []byte) error {
-			if v == nil {
-				res = append(res, k)
-			}
-			return nil
-		})
-		return nil
-	})
-	return res
-}
-
-// GetImages gets the images associated with a fingerprint
-func (d *Datastore) GetImages(col string, fp []byte) []string {
-	var res []string
-	d.db.View(func(tx *bolt.Tx) error {
-		root := tx.Bucket([]byte(col))
-
-		fpBkt := root.Bucket(fp)
-		fpBkt.ForEach(func(k, v []byte) error {
-			if v == nil {
-				res = append(res, string(k))
-			}
-			return nil
-		})
-		return nil
-	})
-	return res
-}
-
-// Dump dumps the contents of the database to the provided file writer
-func (d *Datastore) Dump(w io.Writer) error {
-	return d.db.View(func(tx *bolt.Tx) error {
-		return tx.ForEach(func(name []byte, _ *bolt.Bucket) error {
-			b := tx.Bucket(name)
-			c := b.Cursor()
-			for k, v := c.First(); k != nil; k, v = c.Next() {
-				w.Write([]byte(fmt.Sprintf("bucket=%s, key=%s, value=%s\n", string(name), string(k), string(v))))
-			}
-			return nil
-		})
-	})
+// Put puts a filepath and md5sum in the database
+func (d *Datastore) Put(filePath, md5sum string) error {
+	_, err := d.db.Exec("INSERT OR REPLACE INTO images (filePath, md5sum) VALUES (?, ?)", filePath, md5sum)
+	if err != nil {
+		return err
+	}
+	return nil
 }
