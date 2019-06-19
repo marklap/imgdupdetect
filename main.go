@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"os"
 	"path/filepath"
 
 	"github.com/marklap/imgdupdetect/cli"
@@ -18,8 +17,7 @@ const (
 func main() {
 	here, err := filepath.Abs(".")
 	if err != nil {
-		log.Error(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
 	var datastorePath = flag.String("datastore", filepath.Join(here, "imgdd.sqlite"), "path where the datastore should be saved")
@@ -35,14 +33,12 @@ func main() {
 
 	var dirs []string
 	if dirs = flag.Args(); len(dirs) == 0 {
-		log.Error("no directories specified")
-		os.Exit(1)
+		log.Fatal("no directories specified")
 	}
 
 	ds, err := datastore.Open(datastore.Config{Path: *datastorePath})
 	if err != nil {
-		log.Error(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 	defer ds.Close()
 
@@ -51,9 +47,6 @@ func main() {
 		Datastore: ds,
 	})
 	if err != nil {
-		log.Error(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
-
-	os.Exit(0)
 }

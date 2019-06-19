@@ -67,11 +67,13 @@ func MD5Sum(cfg DupeDetectConfig) error {
 					log.Fatal(err)
 				}
 				defer fp.Close()
+				scanStats.ImagesFound++
 				hash := md5.New()
 				if _, err := io.Copy(hash, fp); err != nil {
 					log.Fatal(err)
 				}
 				md5Sum := fmt.Sprintf("%x", hash.Sum(nil))
+				scanStats.FingerPrintCount++
 				cfg.Datastore.Put(imgPath, md5Sum)
 			}()
 		}

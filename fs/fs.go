@@ -54,6 +54,9 @@ func NewPath(root string, matchers []Matcher) (*Path, error) {
 func (p *Path) Find() ([]string, error) {
 	var paths = []string{}
 	err := filepath.Walk(p.Root.Name(), func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
 		for _, match := range p.Matchers {
 			for _, pattern := range match.Patterns() {
 				if matched, err := filepath.Match(pattern, filepath.Base(path)); err == nil {
